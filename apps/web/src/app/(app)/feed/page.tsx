@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Heart, ImagePlus, MessageCircle, Send, Shield, X } from "lucide-react";
+import { ExternalLink, Heart, ImagePlus, Link2, MessageCircle, Send, Share2, Shield, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/Badge";
@@ -198,9 +198,109 @@ export default function FeedPage() {
             <span className="flex items-center gap-1.5">
               <MessageCircle className="h-4 w-4" /> {post.comment_count}
             </span>
+            <SharePost post={post} />
           </div>
         </Card>
       ))}
+    </div>
+  );
+}
+
+function SharePost({ post }: { post: FeedPost }) {
+  const toast = useToast();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  function openMenu() {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (rect) setMenuPos({ top: rect.bottom + 6, left: Math.max(8, rect.right - 208) });
+    setMenuOpen(true);
+  }
+
+  async function handleShare() {
+    const shareUrl = `${window.location.origin}/feed`;
+    const shareText = post.caption?.trim() || "Check out this post from Sid Bollywood!";
+    const firstImage = post.media.find((m) => m.media_type === "photo");
+
+    if (typeof navigator.share === "function") {
+      try {
+        if (firstImage && typeof navigator.canShare === "function") {
+          const resp = await fetch(firstImage.url);
+          const blob = await resp.blob();
+          const file = new File([blob], "sid-bollywood-post.jpg", { type: blob.type || "image/jpeg" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], text: shareText, title: "Sid Bollywood" });
+            return;
+          }
+        }
+        await navigator.share({ title: "Sid Bollywood", text: shareText, url: shareUrl });
+        return;
+      } catch {
+        // user cancelled the native share sheet, or it failed — fall through to the menu
+      }
+    }
+    if (menuOpen) {
+      setMenuOpen(false);
+    } else {
+      openMenu();
+    }
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/feed`);
+    toast.success("Link copied");
+    setMenuOpen(false);
+  }
+
+  function openExternal(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    setMenuOpen(false);
+  }
+
+  const shareText = encodeURIComponent(post.caption?.trim() || "Check out this post from Sid Bollywood!");
+  const shareUrl = encodeURIComponent(`${typeof window !== "undefined" ? window.location.origin : ""}/feed`);
+
+  return (
+    <div className="ml-auto">
+      <button ref={buttonRef} onClick={handleShare} className="flex items-center gap-1.5 hover:text-foreground">
+        <Share2 className="h-4 w-4" /> Share
+      </button>
+
+      {menuOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+          <div
+            style={{ top: menuPos.top, left: menuPos.left }}
+            className="fixed z-50 w-52 space-y-1 rounded-xl border border-border bg-surface p-2 shadow-lg"
+          >
+            <button onClick={copyLink} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-black/[0.04]">
+              <Link2 className="h-4 w-4 text-muted" /> Copy link
+            </button>
+            <button
+              onClick={() => openExternal(`https://wa.me/?text=${shareText}%20${shareUrl}`)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-black/[0.04]"
+            >
+              <MessageCircle className="h-4 w-4 text-success" /> WhatsApp
+            </button>
+            <button
+              onClick={() => openExternal(`https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-black/[0.04]"
+            >
+              <ExternalLink className="h-4 w-4 text-info" /> X (Twitter)
+            </button>
+            <button
+              onClick={() => openExternal(`https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`)}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground hover:bg-black/[0.04]"
+            >
+              <ExternalLink className="h-4 w-4 text-primary" /> Facebook
+            </button>
+            <p className="px-3 pt-1 text-[11px] leading-snug text-muted">
+              For Instagram, save the photo and share it from the Instagram app — Instagram doesn&apos;t support direct web sharing.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
