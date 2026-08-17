@@ -61,6 +61,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: "Memberships", href: "/memberships", icon: Wallet },
     { label: "Payments", href: "/payments", icon: CreditCard },
     { label: "Events", href: "/events", icon: Ticket },
+    { label: "Feed", href: "/feed", icon: Megaphone },
   ],
   trainer: [
     DASHBOARD,
@@ -68,6 +69,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: "Attendance", href: "/attendance", icon: CalendarCheck },
     { label: "My Students", href: "/students", icon: Users },
     { label: "Events", href: "/events", icon: Ticket },
+    { label: "Feed", href: "/feed", icon: Megaphone },
   ],
   student: [
     { label: "Home", href: "/dashboard", icon: LayoutDashboard },
@@ -79,6 +81,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     DASHBOARD,
     { label: "My Events", href: "/events", icon: Ticket },
     { label: "Albums", href: "/media", icon: ImageIcon },
+    { label: "Feed", href: "/feed", icon: Megaphone },
   ],
 };
 
