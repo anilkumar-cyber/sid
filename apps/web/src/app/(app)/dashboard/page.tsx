@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CalendarDays, CheckCircle2, Clock, CreditCard, GraduationCap, Users, Wallet } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, CreditCard, Footprints, GraduationCap, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -142,7 +142,7 @@ function TrainerDashboard() {
         </CardHeader>
         <CardContent className="space-y-3">
           {todayClasses.isLoading && <Spinner />}
-          {todayClasses.data?.length === 0 && <EmptyState title="No classes today" description="Enjoy your day off!" />}
+          {todayClasses.data?.length === 0 && <EmptyState title="No classes today" description="Enjoy your day off!" icon={Footprints} />}
           {todayClasses.data?.map((session) => (
             <div key={session.id} className="flex items-center justify-between rounded-xl border border-border p-4">
               <div>
@@ -177,7 +177,7 @@ function StudentDashboard() {
       <Card className="bg-gradient-to-br from-primary to-accent text-white">
         <CardContent className="flex items-center gap-4 p-6">
           <div className="rounded-full bg-white/15 p-3">
-            <GraduationCap className="h-6 w-6" />
+            <Footprints className="h-6 w-6" />
           </div>
           <div>
             <p className="text-lg font-semibold">Keep up the rhythm!</p>
@@ -234,7 +234,7 @@ function ActionRow({ label, hint, href }: { label: string; hint?: string; href: 
 
 function TodayClassesList({ data, loading }: { data?: ClassSession[]; loading: boolean }) {
   if (loading) return <Spinner />;
-  if (!data || data.length === 0) return <EmptyState title="No classes scheduled today" />;
+  if (!data || data.length === 0) return <EmptyState title="No classes scheduled today" icon={Footprints} />;
   return (
     <div className="space-y-2">
       {data.map((session) => (

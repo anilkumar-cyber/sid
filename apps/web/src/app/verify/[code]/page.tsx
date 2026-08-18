@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Award, CheckCircle2, Sparkles, XCircle } from "lucide-react";
+import { Award, CheckCircle2, PartyPopper, XCircle } from "lucide-react";
 import { useParams } from "next/navigation";
 
+import { BrandMark } from "@/components/ui/BrandMark";
 import { api, apiErrorMessage } from "@/lib/api";
 
 interface CertificateOut {
@@ -28,9 +29,7 @@ export default function VerifyCertificatePage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 px-4">
       <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-8 text-center shadow-xl">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-white">
-          <Sparkles className="h-6 w-6" />
-        </div>
+        <BrandMark size="lg" className="mx-auto" />
         <p className="mt-3 text-sm text-muted">Sid Bollywood Certificate Verification</p>
 
         {isLoading && <p className="mt-8 text-sm text-muted">Checking...</p>}
@@ -61,7 +60,9 @@ export default function VerifyCertificatePage() {
                 <span className="font-medium text-foreground">{data.issued_date}</span>
               </div>
             </div>
-            <p className="text-xs text-success">This certificate is genuine and was issued by Sid Bollywood.</p>
+            <p className="flex items-center justify-center gap-1.5 text-xs text-success">
+              <PartyPopper className="h-3.5 w-3.5" /> This certificate is genuine and was issued by Sid Bollywood.
+            </p>
           </div>
         )}
       </div>

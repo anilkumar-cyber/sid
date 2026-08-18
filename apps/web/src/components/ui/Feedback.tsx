@@ -1,4 +1,4 @@
-import { AlertCircle, Inbox, Loader2 } from "lucide-react";
+import { AlertCircle, Inbox, Loader2, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 export function Spinner({ label = "Loading..." }: { label?: string }) {
@@ -19,11 +19,21 @@ export function ErrorState({ message = "Something went wrong. Please try again."
   );
 }
 
-export function EmptyState({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
+export function EmptyState({
+  title,
+  description,
+  action,
+  icon: Icon = Inbox,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  icon?: LucideIcon;
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-      <div className="rounded-full bg-black/[0.04] p-3">
-        <Inbox className="h-6 w-6 text-muted" />
+      <div className="rounded-full bg-primary/[0.06] p-3">
+        <Icon className="h-6 w-6 text-primary/60" />
       </div>
       <p className="text-sm font-medium text-foreground">{title}</p>
       {description && <p className="max-w-sm text-sm text-muted">{description}</p>}

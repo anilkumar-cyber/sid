@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, PencilLine, XCircle } from "lucide-react";
+import { Clock, Footprints, PencilLine, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -42,7 +42,7 @@ export default function ClassesPage() {
       <Card className="divide-y divide-border">
         {isLoading && <Spinner />}
         {isError && <ErrorState />}
-        {data?.length === 0 && <EmptyState title="No classes found" />}
+        {data?.length === 0 && <EmptyState title="No classes found" icon={Footprints} />}
         {data?.map((session) => (
           <div key={session.id} className="flex items-center justify-between px-5 py-4">
             <div>

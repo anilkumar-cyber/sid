@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Check, Clock, X } from "lucide-react";
+import { CalendarDays, Check, Clock, Footprints, X } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/Badge";
@@ -44,7 +44,7 @@ function TrainerAttendanceHome() {
       </CardHeader>
       <CardContent className="space-y-3">
         {isLoading && <Spinner />}
-        {data?.length === 0 && <EmptyState title="No classes today" description="Nothing scheduled — enjoy the day off." />}
+        {data?.length === 0 && <EmptyState title="No classes today" description="Nothing scheduled — enjoy the day off." icon={Footprints} />}
         {data?.map((session) => (
           <div key={session.id} className="flex items-center justify-between rounded-xl border border-border p-4">
             <div className="flex items-center gap-3">

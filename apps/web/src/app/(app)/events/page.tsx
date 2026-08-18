@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, MapPin, Plus, Ticket } from "lucide-react";
+import { CalendarDays, MapPin, PartyPopper, Plus, Ticket } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -39,7 +39,7 @@ export default function EventsPage() {
 
       {isLoading && <Spinner />}
       {isError && <ErrorState />}
-      {data?.length === 0 && <EmptyState title="No events yet" />}
+      {data?.length === 0 && <EmptyState title="No events yet" icon={PartyPopper} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {data?.map((event) => (

@@ -1,9 +1,9 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { BrandMark } from "@/components/ui/BrandMark";
 import { cn } from "@/lib/cn";
 import { NAV_BY_ROLE, ROLE_LABEL } from "@/lib/nav";
 import type { Role } from "@/lib/types";
@@ -15,9 +15,7 @@ export function Sidebar({ role }: { role: Role }) {
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 border-b border-border px-5 py-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-accent text-white">
-          <Sparkles className="h-4 w-4" />
-        </div>
+        <BrandMark size="sm" />
         <div>
           <p className="text-sm font-semibold leading-tight text-foreground">Sid Bollywood</p>
           <p className="text-xs leading-tight text-muted">{ROLE_LABEL[role]}</p>

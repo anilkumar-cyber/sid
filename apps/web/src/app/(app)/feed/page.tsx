@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, ExternalLink, Flag, Heart, ImagePlus, Link2, MessageCircle, Send, Share2, Shield, ShieldAlert, Trash2, X } from "lucide-react";
+import { Bookmark, ExternalLink, Flag, Heart, ImagePlus, Link2, MessageCircle, Music2, Send, Share2, Shield, ShieldAlert, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -181,7 +181,7 @@ export default function FeedPage() {
 
       {isLoading && <Spinner />}
       {isError && <ErrorState />}
-      {data?.length === 0 && <EmptyState title="No posts yet" description="Be the first to share something!" />}
+      {data?.length === 0 && <EmptyState title="No posts yet" description="Be the first to share something!" icon={Music2} />}
 
       {data?.map((post) => {
         const canDelete = post.author_id === user?.id || user?.role === "super_admin" || user?.role === "admin";
