@@ -9,6 +9,7 @@ from app.core.constants import TicketStatus
 from app.models.event import Event, EventActivity, EventParticipant, TicketType
 from app.models.ticket import Ticket
 from app.repositories import event as repo
+from app.services import notification as notification_service
 
 
 def create_event(db: Session, data: dict) -> Event:
@@ -100,6 +101,11 @@ def purchase_ticket(db: Session, ticket_type_id: uuid.UUID, holder_name: str, is
         tt.complimentary_quota -= 1
     db.commit()
     db.refresh(ticket)
+    if holder_user_id:
+        notification_service.notify(
+            db, [holder_user_id], type="ticket.purchased", title="Ticket confirmed",
+            body=f"Your {tt.name} ticket {ticket.ticket_number} is confirmed.", link_url=f"/events/{tt.event_id}",
+        )
     return ticket
 
 

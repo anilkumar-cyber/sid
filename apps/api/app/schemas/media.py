@@ -47,3 +47,9 @@ class MediaTagRequest(BaseModel):
 
 class PhotographerAssign(BaseModel):
     photographer_id: uuid.UUID
+
+
+class PhotographerOut(BaseModel):
+    photographer_id: uuid.UUID
+    full_name: str
+    email: str

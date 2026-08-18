@@ -152,40 +152,55 @@ rollback — not mocks.
 
 Frontend type-checks clean (`npx tsc --noEmit`) and builds clean
 (`npm run build`). The full stack was also driven through a real headless
-browser (login → trainer dashboard → today's classes → attendance roster →
-mark all present → submit → summary; admin login → dashboard → students
-list) with zero console/page errors.
+browser across multiple passes — login → trainer dashboard → today's
+classes → attendance roster → mark all present → submit → summary; feed
+image upload, comments, and share menu; batch enrollment/transfer; event
+ticket purchase and staff check-in; class reschedule; student assessment →
+certificate issuance → public verification page — with zero console/page
+errors, plus a direct end-to-end check that recording a payment creates a
+real notification for the student.
 
 ## What's implemented
 
 Every module in the spec has real, working backend APIs (enforced RBAC +
-branch isolation) and a real database schema. Frontend UI is complete for:
-auth, all 6 dashboards, branches, students (list/detail/register),
-trainers, courses/batches (with recurring schedule + auto-generated
-sessions, capacity/waitlist), classes, batch detail (roster, enroll,
-transfer between batches, waitlist, remove), memberships (plans, assign,
-freeze/resume/renew/cancel), payments + revenue summary, the trainer
-attendance flow (the spec's highest-priority module — roster,
-mark-all-present, per-student status toggles, submit, live summary,
-correction request/approval), events with detail pages (ticket types,
-student ticket purchase, staff paste-code QR check-in with live
-sold/checked-in/no-show/complimentary counts), community feed
-(post/like/comment count, official announcements), media (albums, upload,
-admin approve/reject queue), and a notification center (list, mark
-read/unread, mark-all-read) wired to the topbar bell for every role.
+branch isolation) and a real database schema, and — as of this pass —
+every module also has a working frontend page. Highlights:
+
+- **Auth, all 6 dashboards**, branches, students (list/detail/register),
+  trainers, courses/batches (recurring schedule + auto-generated sessions,
+  capacity/waitlist), **batch detail** (roster, enroll, transfer, waitlist,
+  remove), **classes** (list + reschedule/cancel with conflict checking),
+  **memberships** (plans, assign, freeze/resume/renew/cancel).
+- **Attendance** (the spec's highest-priority module) — roster,
+  mark-all-present, per-student toggles, submit, live summary, correction
+  request/approval.
+- **Events** — detail pages with ticket types, student purchase, staff
+  paste-code QR check-in with live sold/checked-in/no-show/complimentary
+  counts, and photographer assignment.
+- **Media** — albums, upload, admin approve/reject queue, an
+  approved-but-unpublished queue with student tagging, then publish.
+- **Community feed** — photo/video posts (Instagram-style), like, comment
+  thread (view + add), save/bookmark, delete own post, report, a native
+  Web-Share-API share button (falls back to copy-link/WhatsApp/X/Facebook
+  on desktop), official-announcement toggle for admins, and an admin
+  moderation queue (dismiss report / disable comments / remove post).
+- **Learning content library** — upload (admin/trainer) and browse/favorite
+  (everyone), filterable by type.
+- **Student progress & certificates** — trainer assessment form (6-axis
+  rating + comments) on the student profile, admin certificate issuance,
+  and a public (no-login) certificate verification page at `/verify/[code]`.
+- **Notifications** — real triggers, not just a UI shell: payment recorded,
+  class rescheduled/cancelled (roster + trainer notified), ticket purchase
+  confirmed, tagged photos published, attendance correction reviewed, and
+  official announcements broadcast to all active users.
+- **Audit log viewer** for admins.
 
 ## Known limitations (honest list)
 
-- **Student progress assessments, certificates, and the learning content
-  library** have complete, tested backend APIs but no dedicated frontend
-  page yet — deprioritized versus the features above per direct user
-  request.
 - **QR ticket scanning** uses a paste-the-code field, not a camera-based
   scanner — the same `POST /tickets/validate` endpoint a camera scanner
   would call is already wired up and working; only the camera capture UI
   is missing.
-- **Class reschedule/cancel** (conflict-checked on the backend) has no
-  frontend page yet.
 - **Payment gateway** is not integrated — payments are recorded manually
   (cash/UPI/card logged by staff); `app/services/finance.py` is structured
   so a Razorpay adapter can be dropped in without touching callers.

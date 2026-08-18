@@ -12,18 +12,20 @@ import { NAV_BY_ROLE } from "@/lib/nav";
 
 const EXTRA_TITLES: { prefix: string; label: string }[] = [
   { prefix: "/notifications", label: "Notifications" },
+  { prefix: "/feed/moderation", label: "Feed Moderation" },
   { prefix: "/batches/", label: "Batch Detail" },
   { prefix: "/events/", label: "Event Detail" },
   { prefix: "/students/", label: "Student Profile" },
+  { prefix: "/profile", label: "My Profile" },
 ];
 
 function titleFor(pathname: string, role: string | undefined): string {
   if (!role) return "";
+  const extra = EXTRA_TITLES.find((e) => pathname.startsWith(e.prefix));
+  if (extra) return extra.label;
   const items = NAV_BY_ROLE[role as keyof typeof NAV_BY_ROLE] ?? [];
   const match = items.find((item) => pathname === item.href || pathname.startsWith(item.href + "/"));
-  if (match) return match.label;
-  const extra = EXTRA_TITLES.find((e) => pathname.startsWith(e.prefix));
-  return extra?.label ?? "Sid Bollywood";
+  return match?.label ?? "Sid Bollywood";
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

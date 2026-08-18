@@ -14,6 +14,7 @@ from app.schemas.media import (
     MediaRejectRequest,
     MediaTagRequest,
     PhotographerAssign,
+    PhotographerOut,
 )
 from app.services import media as service
 from app.services.audit import log_action
@@ -43,6 +44,12 @@ def assign_photographer(event_id: uuid.UUID, body: PhotographerAssign, db: Sessi
     return {"assigned": True}
 
 
+@router.get("/events/{event_id}/photographers", response_model=list[PhotographerOut])
+def list_event_photographers(event_id: uuid.UUID, db: Session = Depends(get_db), current_user=Depends(require_roles(Role.SUPER_ADMIN, Role.ADMIN))) -> list[PhotographerOut]:
+    rows = repo.list_assigned_photographers(db, event_id)
+    return [PhotographerOut(photographer_id=user.id, full_name=user.full_name, email=user.email) for _, user in rows]
+
+
 @router.get("/albums/{album_id}/media", response_model=list[MediaAssetOut])
 def list_media(album_id: uuid.UUID, status: MediaStatus | None = None, db: Session = Depends(get_db), current_user=Depends(get_current_user)) -> list[MediaAssetOut]:
     rows = repo.list_media(db, album_id, status, None)
@@ -66,6 +73,12 @@ async def upload_media(album_id: uuid.UUID, file: UploadFile = File(...), db: Se
 @router.get("/media/pending", response_model=list[MediaAssetOut])
 def list_pending(db: Session = Depends(get_db), current_user=Depends(MODERATE)) -> list[MediaAssetOut]:
     rows = repo.list_media(db, None, MediaStatus.PENDING_APPROVAL, None)
+    return [MediaAssetOut.model_validate(service.media_to_out(r)) for r in rows]
+
+
+@router.get("/media", response_model=list[MediaAssetOut])
+def list_all_media(status: MediaStatus | None = None, db: Session = Depends(get_db), current_user=Depends(MODERATE)) -> list[MediaAssetOut]:
+    rows = repo.list_media(db, None, status, None)
     return [MediaAssetOut.model_validate(service.media_to_out(r)) for r in rows]
 
 

@@ -1,11 +1,14 @@
 import uuid
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.constants import Role
+from app.core.constants import Role, UserStatus
 from app.models.feed import Post, PostComment, PostLike, PostMedia, PostReport, PostSave
+from app.models.user import User
 from app.repositories import feed as repo
+from app.services import notification as notification_service
 from app.utils.storage import generate_thumbnail, save_file, storage_url, validate_upload
 
 
@@ -26,6 +29,14 @@ def create_post(db: Session, data: dict, files: list[tuple[bytes, str, str]], au
 
     db.commit()
     db.refresh(post)
+
+    if is_official:
+        user_ids = db.execute(select(User.id).where(User.status == UserStatus.ACTIVE, User.id != author_id)).scalars().all()
+        if user_ids:
+            notification_service.notify(
+                db, list(user_ids), type="feed.announcement", title="New announcement",
+                body=(post.caption or "")[:140] or "Check the community feed for details.", link_url="/feed",
+            )
     return post
 
 

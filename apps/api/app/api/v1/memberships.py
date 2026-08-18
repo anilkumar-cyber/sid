@@ -37,6 +37,13 @@ def create_plan(body: MembershipPlanCreate, db: Session = Depends(get_db), curre
 
 @router.get("/memberships", response_model=list[MembershipOut])
 def list_memberships(student_id: uuid.UUID | None = None, status: MembershipStatus | None = None, db: Session = Depends(get_db), current_user=Depends(READ)) -> list[MembershipOut]:
+    if current_user.role == Role.STUDENT:
+        from app.repositories.student import get_student_by_user_id
+
+        profile = get_student_by_user_id(db, current_user.id)
+        if profile is None or (student_id is not None and student_id != profile.id):
+            raise HTTPException(403, "Cannot view another student's memberships")
+        student_id = profile.id
     return [MembershipOut.model_validate(m) for m in repo.list_memberships(db, student_id, status)]
 
 

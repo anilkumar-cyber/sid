@@ -29,6 +29,13 @@ def list_payments(
     db: Session = Depends(get_db),
     current_user=Depends(READ),
 ) -> Page[PaymentOut]:
+    if current_user.role == Role.STUDENT:
+        from app.repositories.student import get_student_by_user_id
+
+        profile = get_student_by_user_id(db, current_user.id)
+        if profile is None or (student_id is not None and student_id != profile.id):
+            raise HTTPException(403, "Cannot view another student's payments")
+        student_id = profile.id
     rows, total = repo.list_payments(db, branch_id, student_id, status, page, page_size)
     return Page(items=[PaymentOut.model_validate(service.payment_to_out(p)) for p in rows], total=total, page=page, page_size=page_size)
 

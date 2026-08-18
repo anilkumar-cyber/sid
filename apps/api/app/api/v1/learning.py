@@ -85,6 +85,12 @@ def add_assessment(body: AssessmentCreate, db: Session = Depends(get_db), curren
 
 @router.get("/students/{student_id}/certificates", response_model=list[CertificateOut])
 def list_certificates(student_id: uuid.UUID, db: Session = Depends(get_db), current_user=Depends(get_current_user)) -> list[CertificateOut]:
+    if current_user.role == Role.STUDENT:
+        from app.repositories.student import get_student_by_user_id
+
+        profile = get_student_by_user_id(db, current_user.id)
+        if profile is None or profile.id != student_id:
+            raise HTTPException(403, "Cannot view another student's certificates")
     return [CertificateOut.model_validate(c) for c in repo.list_certificates(db, student_id)]
 
 

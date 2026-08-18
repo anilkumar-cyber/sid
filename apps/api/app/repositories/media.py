@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.constants import MediaStatus
 from app.models.event import EventPhotographer
 from app.models.media import Album, MediaAsset, MediaTag
+from app.models.user import User
 
 
 def list_albums(db: Session, event_id: uuid.UUID | None = None, branch_id: uuid.UUID | None = None):
@@ -55,6 +56,13 @@ def assign_photographer(db: Session, event_id: uuid.UUID, photographer_id: uuid.
     db.commit()
     db.refresh(row)
     return row
+
+
+def list_assigned_photographers(db: Session, event_id: uuid.UUID):
+    query = select(EventPhotographer, User).join(User, User.id == EventPhotographer.photographer_id).where(
+        EventPhotographer.event_id == event_id
+    )
+    return db.execute(query).all()
 
 
 def student_media(db: Session, student_id: uuid.UUID):

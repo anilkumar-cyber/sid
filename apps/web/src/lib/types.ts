@@ -11,6 +11,17 @@ export interface Me {
   accessible_branch_ids: string[];
 }
 
+export interface UserOut {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  role: Role;
+  status: string;
+  home_branch_id: string | null;
+  avatar_url: string | null;
+}
+
 export interface Branch {
   id: string;
   name: string;
@@ -238,6 +249,48 @@ export interface FeedPost {
   saved_by_me: boolean;
   media: PostMedia[];
   created_at: string;
+}
+
+export interface Assessment {
+  id: string;
+  student_id: string;
+  trainer_id: string;
+  rhythm: number;
+  timing: number;
+  technique: number;
+  expression: number;
+  coordination: number;
+  performance: number;
+  comments: string | null;
+  created_at: string;
+}
+
+export interface Certificate {
+  id: string;
+  student_id: string;
+  certificate_number: string;
+  achievement_type: string;
+  title: string;
+  issued_date: string;
+  verification_code: string;
+}
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  author_name: string;
+  body: string;
+  created_at: string;
+}
+
+export interface PostReport {
+  id: string;
+  post_id: string;
+  reported_by_id: string;
+  reason: string;
+  details: string | null;
+  status: string;
 }
 
 export interface NotificationItem {

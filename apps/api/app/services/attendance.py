@@ -8,6 +8,7 @@ from app.core.constants import AttendanceStatus, Role
 from app.models.academy import ClassSession
 from app.models.attendance import AttendanceCorrectionRequest, AttendanceRecord
 from app.repositories import attendance as repo
+from app.services import notification as notification_service
 
 
 def build_roster(db: Session, session: ClassSession) -> dict:
@@ -104,6 +105,12 @@ def review_correction(db: Session, request: AttendanceCorrectionRequest, approve
         record.marked_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(request)
+    notification_service.notify(
+        db, [request.requested_by_id], type="attendance.correction_reviewed",
+        title=f"Correction request {request.status}",
+        body="Your attendance correction request was " + request.status + ".",
+        link_url="/attendance",
+    )
     return request
 
 

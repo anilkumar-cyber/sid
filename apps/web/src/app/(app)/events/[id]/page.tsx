@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, CheckCircle2, MapPin, Plus, QrCode, ShoppingCart, Ticket as TicketIcon, XCircle } from "lucide-react";
+import { ArrowLeft, Camera, CheckCircle2, MapPin, Plus, QrCode, ShoppingCart, Ticket as TicketIcon, UserPlus, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -13,12 +13,12 @@ import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
-import { FieldError, Input, Label } from "@/components/ui/Input";
+import { FieldError, Input, Label, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api, apiErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
-import type { EventAttendanceSummary, SidEvent, Ticket, TicketType } from "@/lib/types";
+import type { EventAttendanceSummary, Page, SidEvent, Ticket, TicketType, UserOut } from "@/lib/types";
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -90,6 +90,8 @@ export default function EventDetailPage() {
         </div>
       )}
 
+      {canManage && <PhotographersPanel eventId={id} />}
+
       <Card>
         <CardHeader>
           <CardTitle>Ticket Types</CardTitle>
@@ -148,6 +150,66 @@ function SummaryTile({ label, value }: { label: string; value: number }) {
     <Card className="p-4 text-center">
       <p className="text-2xl font-bold text-foreground">{value}</p>
       <p className="text-xs text-muted">{label}</p>
+    </Card>
+  );
+}
+
+function PhotographersPanel({ eventId }: { eventId: string }) {
+  const toast = useToast();
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState("");
+
+  const assigned = useQuery({
+    queryKey: ["events", eventId, "photographers"],
+    queryFn: async () => (await api.get<{ photographer_id: string; full_name: string; email: string }[]>(`/events/${eventId}/photographers`)).data,
+  });
+  const photographers = useQuery({
+    queryKey: ["users", { role: "photographer" }],
+    queryFn: async () => (await api.get<Page<UserOut>>("/users", { params: { role: "photographer", page_size: 100 } })).data,
+  });
+
+  const assign = useMutation({
+    mutationFn: async () => api.post(`/events/${eventId}/photographers`, { photographer_id: selected }),
+    onSuccess: () => {
+      toast.success("Photographer assigned");
+      setSelected("");
+      queryClient.invalidateQueries({ queryKey: ["events", eventId, "photographers"] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const unassignedOptions = photographers.data?.items.filter((p) => !assigned.data?.some((a) => a.photographer_id === p.id)) ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Assigned Photographers</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {assigned.isLoading && <Spinner />}
+        {assigned.data?.length === 0 && <EmptyState title="No photographers assigned yet" description="Only assigned photographers can upload media for this event." />}
+        {assigned.data?.map((p) => (
+          <div key={p.photographer_id} className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm">
+            <Camera className="h-4 w-4 text-muted" />
+            <span className="font-medium text-foreground">{p.full_name}</span>
+            <span className="text-muted">{p.email}</span>
+          </div>
+        ))}
+
+        <div className="flex gap-2 pt-1">
+          <Select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1">
+            <option value="">Select a photographer</option>
+            {unassignedOptions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+              </option>
+            ))}
+          </Select>
+          <Button size="sm" disabled={!selected} loading={assign.isPending} onClick={() => assign.mutate()}>
+            <UserPlus className="h-3.5 w-3.5" /> Assign
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   );
 }

@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from app.core.constants import MembershipStatus, PaymentStatus
 from app.models.membership import Membership, MembershipBranch, MembershipPlan
 from app.models.payment import Invoice, Payment
+from app.models.student import StudentProfile
 from app.repositories import finance as repo
+from app.services import notification as notification_service
 
 
 def create_membership_plan(db: Session, data: dict) -> MembershipPlan:
@@ -95,6 +97,7 @@ def record_payment(db: Session, data: dict, recorded_by_id: uuid.UUID) -> Paymen
 
     db.commit()
     db.refresh(payment)
+    _notify_payment_recorded(db, payment)
     return payment
 
 
@@ -105,7 +108,25 @@ def update_payment_status(db: Session, payment: Payment, new_status: PaymentStat
         db.add(Invoice(payment_id=payment.id, invoice_number=invoice_number, issued_date=date.today()))
     db.commit()
     db.refresh(payment)
+    if new_status == PaymentStatus.PAID:
+        _notify_payment_recorded(db, payment)
     return payment
+
+
+def _notify_payment_recorded(db: Session, payment: Payment) -> None:
+    if payment.status != PaymentStatus.PAID:
+        return
+    profile = db.get(StudentProfile, payment.student_id)
+    if profile is None:
+        return
+    notification_service.notify(
+        db,
+        [profile.user_id],
+        type="payment.recorded",
+        title="Payment received",
+        body=f"We've recorded your payment of ₹{float(payment.amount):,.0f}. Thank you!",
+        link_url="/payments",
+    )
 
 
 def payment_to_out(payment: Payment) -> dict:

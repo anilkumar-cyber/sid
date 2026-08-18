@@ -25,6 +25,13 @@ def list_enrollments(
     db: Session = Depends(get_db),
     current_user=Depends(READ),
 ) -> list[EnrollmentOut]:
+    if current_user.role == Role.STUDENT:
+        from app.repositories.student import get_student_by_user_id
+
+        profile = get_student_by_user_id(db, current_user.id)
+        if profile is None or (student_id is not None and student_id != profile.id):
+            raise HTTPException(403, "Cannot view another student's enrollments")
+        student_id = profile.id
     return [EnrollmentOut.model_validate(e) for e in repo.list_enrollments(db, student_id, batch_id, status)]
 
 

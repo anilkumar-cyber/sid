@@ -2,11 +2,14 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.constants import MediaStatus, MediaType, Role
 from app.models.media import Album, MediaAsset, MediaTag
+from app.models.student import StudentProfile
 from app.repositories import media as repo
+from app.services import notification as notification_service
 from app.utils.storage import generate_thumbnail, save_file, storage_url, validate_upload
 
 
@@ -102,6 +105,15 @@ def publish_media(db: Session, asset: MediaAsset) -> MediaAsset:
     asset.status = MediaStatus.PUBLISHED
     db.commit()
     db.refresh(asset)
+
+    tagged_student_ids = db.execute(select(MediaTag.student_id).where(MediaTag.media_asset_id == asset.id)).scalars().all()
+    if tagged_student_ids:
+        user_ids = db.execute(select(StudentProfile.user_id).where(StudentProfile.id.in_(tagged_student_ids))).scalars().all()
+        if user_ids:
+            notification_service.notify(
+                db, list(user_ids), type="media.published", title="New photos of you are up!",
+                body="Check out the album you were tagged in.", link_url="/media",
+            )
     return asset
 
 

@@ -10,6 +10,8 @@ from app.models.branch import Branch, Studio
 from app.models.enrollment import Enrollment, EnrollmentHistory
 from app.models.membership import Membership
 from app.repositories import academy as repo
+from app.repositories.attendance import get_roster
+from app.services import notification as notification_service
 
 
 # ---- Branch / Studio ----
@@ -158,6 +160,13 @@ def reschedule_class_session(db: Session, session: ClassSession, updates: dict, 
     session.cancellation_reason = reason
     db.commit()
     db.refresh(session)
+    _notify_roster(
+        db,
+        session,
+        type="class.rescheduled",
+        title=f"{session.batch.name} rescheduled",
+        body=f"Now on {session.session_date} at {session.start_time.strftime('%H:%M')}." + (f" {reason}" if reason else ""),
+    )
     return session
 
 
@@ -166,7 +175,23 @@ def cancel_class_session(db: Session, session: ClassSession, reason: str) -> Cla
     session.cancellation_reason = reason
     db.commit()
     db.refresh(session)
+    _notify_roster(
+        db,
+        session,
+        type="class.cancelled",
+        title=f"{session.batch.name} cancelled — {session.session_date}",
+        body=reason,
+    )
     return session
+
+
+def _notify_roster(db: Session, session: ClassSession, type: str, title: str, body: str | None) -> None:
+    roster = get_roster(db, session.batch_id)
+    user_ids = [s.user_id for s in roster]
+    if session.trainer_id:
+        user_ids.append(session.trainer_id)
+    if user_ids:
+        notification_service.notify(db, user_ids, type=type, title=title, body=body, link_url="/classes")
 
 
 # ---- Enrollment ----

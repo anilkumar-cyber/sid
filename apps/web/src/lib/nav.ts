@@ -5,12 +5,15 @@ import {
   CalendarDays,
   ClipboardList,
   CreditCard,
+  FileClock,
   GraduationCap,
   Image as ImageIcon,
   LayoutDashboard,
   Megaphone,
+  PlayCircle,
   Ticket,
   TrendingUp,
+  User,
   Users,
   Wallet,
 } from "lucide-react";
@@ -24,6 +27,8 @@ export interface NavItem {
 }
 
 const DASHBOARD: NavItem = { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard };
+const LEARNING: NavItem = { label: "Learning", href: "/learning", icon: PlayCircle };
+const FEED: NavItem = { label: "Feed", href: "/feed", icon: Megaphone };
 
 export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   super_admin: [
@@ -37,8 +42,10 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: "Payments", href: "/payments", icon: CreditCard },
     { label: "Events", href: "/events", icon: Ticket },
     { label: "Media", href: "/media", icon: ImageIcon },
-    { label: "Feed", href: "/feed", icon: Megaphone },
+    LEARNING,
+    FEED,
     { label: "Reports", href: "/reports", icon: TrendingUp },
+    { label: "Audit Logs", href: "/audit-logs", icon: FileClock },
   ],
   admin: [
     DASHBOARD,
@@ -50,8 +57,10 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: "Payments", href: "/payments", icon: CreditCard },
     { label: "Events", href: "/events", icon: Ticket },
     { label: "Media", href: "/media", icon: ImageIcon },
-    { label: "Feed", href: "/feed", icon: Megaphone },
+    LEARNING,
+    FEED,
     { label: "Reports", href: "/reports", icon: TrendingUp },
+    { label: "Audit Logs", href: "/audit-logs", icon: FileClock },
   ],
   receptionist: [
     DASHBOARD,
@@ -61,7 +70,7 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: "Memberships", href: "/memberships", icon: Wallet },
     { label: "Payments", href: "/payments", icon: CreditCard },
     { label: "Events", href: "/events", icon: Ticket },
-    { label: "Feed", href: "/feed", icon: Megaphone },
+    FEED,
   ],
   trainer: [
     DASHBOARD,
@@ -69,19 +78,22 @@ export const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { label: "Attendance", href: "/attendance", icon: CalendarCheck },
     { label: "My Students", href: "/students", icon: Users },
     { label: "Events", href: "/events", icon: Ticket },
-    { label: "Feed", href: "/feed", icon: Megaphone },
+    LEARNING,
+    FEED,
   ],
   student: [
     { label: "Home", href: "/dashboard", icon: LayoutDashboard },
     { label: "Classes", href: "/classes", icon: CalendarDays },
+    LEARNING,
     { label: "Events", href: "/events", icon: Ticket },
-    { label: "Feed", href: "/feed", icon: Megaphone },
+    FEED,
+    { label: "Profile", href: "/profile", icon: User },
   ],
   photographer: [
     DASHBOARD,
     { label: "My Events", href: "/events", icon: Ticket },
     { label: "Albums", href: "/media", icon: ImageIcon },
-    { label: "Feed", href: "/feed", icon: Megaphone },
+    FEED,
   ],
 };
 
