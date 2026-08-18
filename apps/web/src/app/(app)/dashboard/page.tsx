@@ -5,8 +5,9 @@ import { format } from "date-fns";
 import { CalendarDays, CheckCircle2, Clock, CreditCard, Footprints, GraduationCap, Users, Wallet } from "lucide-react";
 import Link from "next/link";
 
+import { ActionCenter } from "@/components/dashboard/ActionCenter";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { Badge, StatusBadge } from "@/components/ui/Badge";
+import { StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState, Spinner } from "@/components/ui/Feedback";
@@ -48,19 +49,7 @@ function AdminDashboard() {
         <StatCard label="Classes Today" value={todayClasses.data?.length ?? "—"} icon={CalendarDays} tone="gold" />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Action Center</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <ActionRow
-            label={`${summary.data?.pending_payments_count ?? 0} pending payments`}
-            hint={summary.data ? `₹${summary.data.pending_payments_amount.toLocaleString()} outstanding` : undefined}
-            href="/payments"
-          />
-          <ActionRow label={`${summary.data?.expiring_memberships_count ?? 0} memberships expiring soon`} href="/memberships" />
-        </CardContent>
-      </Card>
+      <ActionCenter />
 
       <Card>
         <CardHeader>
@@ -105,6 +94,8 @@ function ReceptionistDashboard() {
         <StatCard label="Pending Payments" value={summary.data?.pending_payments_count ?? "—"} icon={CreditCard} tone="warning" />
         <StatCard label="Memberships Expiring" value={summary.data?.expiring_memberships_count ?? "—"} icon={Wallet} tone="accent" />
       </div>
+
+      <ActionCenter />
 
       <Card>
         <CardHeader>
@@ -217,18 +208,6 @@ function PhotographerDashboard() {
       </Card>
       <StatCard label="Upcoming Events" value={events.data?.length ?? "—"} icon={CalendarDays} tone="primary" />
     </div>
-  );
-}
-
-function ActionRow({ label, hint, href }: { label: string; hint?: string; href: string }) {
-  return (
-    <Link href={href} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm hover:bg-black/[0.02]">
-      <div>
-        <p className="font-medium text-foreground">{label}</p>
-        {hint && <p className="text-xs text-muted">{hint}</p>}
-      </div>
-      <Badge tone="primary">Review</Badge>
-    </Link>
   );
 }
 

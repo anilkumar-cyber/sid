@@ -111,17 +111,34 @@ class BatchUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class BatchScheduleOut(BaseModel):
+    day_of_week: int
+    start_time: time
+    end_time: time
+
+    model_config = {"from_attributes": True}
+
+
 class BatchOut(BaseModel):
     id: uuid.UUID
     name: str
     course_level_id: uuid.UUID
+    course_name: str | None = None
+    level_name: str | None = None
     branch_id: uuid.UUID
+    branch_name: str | None = None
     studio_id: uuid.UUID | None
+    studio_name: str | None = None
     trainer_id: uuid.UUID | None
+    trainer_name: str | None = None
     capacity: int
     is_active: bool
     enrolled_count: int = 0
     waitlist_count: int = 0
+    available_seats: int = 0
+    attendance_percent: float | None = None
+    schedules: list[BatchScheduleOut] = Field(default_factory=list)
+    health: list[str] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

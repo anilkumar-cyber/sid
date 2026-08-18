@@ -2,11 +2,26 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Globe, Image as ImageIcon, Plus, Tags, UploadCloud, X } from "lucide-react";
-import { useRef, useState } from "react";
+import {
+  Check,
+  Download,
+  DownloadCloud,
+  Globe,
+  Image as ImageIcon,
+  Plus,
+  RotateCcw,
+  Sparkles,
+  Tags,
+  UploadCloud,
+  Video as VideoIcon,
+  X,
+} from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
@@ -21,6 +36,7 @@ interface Album {
   id: string;
   name: string;
   event_id: string | null;
+  activity_id: string | null;
   media_count: number;
 }
 
@@ -31,21 +47,45 @@ interface MediaAsset {
   url: string;
   thumbnail_url: string | null;
   status: string;
+  downloads_enabled: boolean;
   created_at: string;
 }
 
+interface UploadJob {
+  id: string;
+  file: File;
+  progress: number;
+  status: "uploading" | "done" | "error";
+  error?: string;
+}
+
 export default function MediaPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <MediaPageContent />
+    </Suspense>
+  );
+}
+
+function MediaPageContent() {
   const { user } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const eventFilter = searchParams.get("event_id") ?? "";
   const [albumModalOpen, setAlbumModalOpen] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState<string>("");
+  const [jobs, setJobs] = useState<UploadJob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canCreateAlbum = user?.role === "super_admin" || user?.role === "admin";
   const canUpload = user && ["super_admin", "admin", "trainer", "photographer"].includes(user.role);
   const canModerate = user?.role === "super_admin" || user?.role === "admin";
+  const isStudent = user?.role === "student";
 
-  const albums = useQuery({ queryKey: ["albums"], queryFn: async () => (await api.get<Album[]>("/albums")).data });
+  const albums = useQuery({
+    queryKey: ["albums", eventFilter],
+    queryFn: async () => (await api.get<Album[]>("/albums", { params: { event_id: eventFilter || undefined } })).data,
+  });
   const pending = useQuery({
     queryKey: ["media", "pending"],
     queryFn: async () => (await api.get<MediaAsset[]>("/media/pending")).data,
@@ -57,19 +97,36 @@ export default function MediaPage() {
     enabled: !!canModerate,
   });
 
-  const upload = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData();
-      form.set("file", file);
-      return api.post(`/albums/${selectedAlbum}/media`, form, { headers: { "Content-Type": "multipart/form-data" } });
-    },
-    onSuccess: () => {
-      toast.success("Uploaded. Pending admin approval.");
-      queryClient.invalidateQueries({ queryKey: ["albums"] });
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    },
-    onError: (err) => toast.error(apiErrorMessage(err)),
-  });
+  function uploadFiles(files: FileList) {
+    const newJobs: UploadJob[] = Array.from(files).map((file) => ({ id: `${file.name}-${Date.now()}-${Math.random()}`, file, progress: 0, status: "uploading" }));
+    setJobs((prev) => [...prev, ...newJobs]);
+    newJobs.forEach((job) => runUpload(job));
+  }
+
+  function runUpload(job: UploadJob) {
+    const form = new FormData();
+    form.set("file", job.file);
+    api
+      .post(`/albums/${selectedAlbum}/media`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        onUploadProgress: (evt) => {
+          const pct = evt.total ? Math.round((evt.loaded / evt.total) * 100) : 0;
+          setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, progress: pct } : j)));
+        },
+      })
+      .then(() => {
+        setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: "done", progress: 100 } : j)));
+        queryClient.invalidateQueries({ queryKey: ["albums"] });
+      })
+      .catch((err) => {
+        setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: "error", error: apiErrorMessage(err) } : j)));
+      });
+  }
+
+  function retryJob(job: UploadJob) {
+    setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, status: "uploading", progress: 0, error: undefined } : j)));
+    runUpload(job);
+  }
 
   const moderate = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" | "publish" }) =>
@@ -82,36 +139,85 @@ export default function MediaPage() {
     onError: (err) => toast.error(apiErrorMessage(err)),
   });
 
+  const toggleDownloads = useMutation({
+    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => api.post(`/media/${id}/downloads`, { downloads_enabled: enabled }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["media"] });
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
+  const autoTag = useMutation({
+    mutationFn: async (albumId: string) => (await api.post<{ tags_created: number }>(`/albums/${albumId}/auto-tag-performers`)).data,
+    onSuccess: (data) => {
+      toast.success(data.tags_created > 0 ? `Tagged ${data.tags_created} student${data.tags_created === 1 ? "" : "s"}` : "Everyone already tagged");
+    },
+    onError: (err) => toast.error(apiErrorMessage(err)),
+  });
+
   const [tagTarget, setTagTarget] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
+      {eventFilter && (
+        <Badge tone="primary" className="flex w-fit items-center gap-1.5">
+          Filtered to one event
+        </Badge>
+      )}
+
+      {isStudent && <StudentGallery />}
+
       {canUpload && (
         <Card>
           <CardHeader>
             <CardTitle>Upload Photos / Videos</CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-wrap items-center gap-3">
-            <Select className="w-64" value={selectedAlbum} onChange={(e) => setSelectedAlbum(e.target.value)}>
-              <option value="">Select an album</option>
-              {albums.data?.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </Select>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*"
-              disabled={!selectedAlbum}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) upload.mutate(file);
-              }}
-              className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:text-white disabled:opacity-50"
-            />
-            {upload.isPending && <Spinner label="Uploading..." />}
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Select className="w-64" value={selectedAlbum} onChange={(e) => setSelectedAlbum(e.target.value)}>
+                <option value="">Select an album</option>
+                {albums.data?.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                disabled={!selectedAlbum}
+                onChange={(e) => {
+                  if (e.target.files?.length) uploadFiles(e.target.files);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
+                }}
+                className="text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:text-white disabled:opacity-50"
+              />
+            </div>
+            <p className="text-xs text-muted">Select multiple files at once for bulk upload — drag no further needed, just multi-select in the file picker.</p>
+
+            {jobs.length > 0 && (
+              <div className="space-y-1.5 border-t border-border pt-3">
+                {jobs.map((job) => (
+                  <div key={job.id} className="flex items-center gap-2 text-xs">
+                    <span className="w-40 truncate">{job.file.name}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.06]">
+                      <div
+                        className={`h-full rounded-full ${job.status === "error" ? "bg-danger" : job.status === "done" ? "bg-success" : "bg-primary"}`}
+                        style={{ width: `${job.progress}%` }}
+                      />
+                    </div>
+                    {job.status === "error" && (
+                      <button onClick={() => retryJob(job)} className="flex items-center gap-1 text-danger hover:underline">
+                        <RotateCcw className="h-3 w-3" /> Retry
+                      </button>
+                    )}
+                    {job.status === "done" && <Check className="h-3.5 w-3.5 text-success" />}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -130,14 +236,25 @@ export default function MediaPage() {
           {albums.isError && <ErrorState />}
           {albums.data?.length === 0 && <EmptyState title="No albums yet" />}
           {albums.data?.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 rounded-xl border border-border p-4">
-              <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                <ImageIcon className="h-5 w-5" />
+            <div key={a.id} className="flex items-center justify-between gap-3 rounded-xl border border-border p-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                  <ImageIcon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">{a.name}</p>
+                  <p className="text-xs text-muted">{a.media_count} items</p>
+                </div>
               </div>
-              <div>
-                <p className="font-medium text-foreground">{a.name}</p>
-                <p className="text-xs text-muted">{a.media_count} items</p>
-              </div>
+              {canModerate && (a.event_id || a.activity_id) && (
+                <button
+                  onClick={() => autoTag.mutate(a.id)}
+                  title="Tag all performers linked to this album's event/performance"
+                  className="flex items-center gap-1 rounded-full bg-gold/10 px-2 py-1 text-xs font-medium text-gold hover:bg-gold/20"
+                >
+                  <Sparkles className="h-3 w-3" /> Auto-tag
+                </button>
+              )}
             </div>
           ))}
         </CardContent>
@@ -203,6 +320,13 @@ export default function MediaPage() {
                     <Tags className="h-3.5 w-3.5" /> Tag
                   </button>
                   <button
+                    onClick={() => toggleDownloads.mutate({ id: m.id, enabled: !m.downloads_enabled })}
+                    title={m.downloads_enabled ? "Downloads allowed — click to disable" : "Downloads disabled — click to enable"}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full ${m.downloads_enabled ? "text-muted hover:bg-black/[0.05]" : "text-danger hover:bg-danger/10"}`}
+                  >
+                    <DownloadCloud className="h-3.5 w-3.5" />
+                  </button>
+                  <button
                     onClick={() => moderate.mutate({ id: m.id, action: "publish" })}
                     className="flex h-7 flex-1 items-center justify-center gap-1 rounded-full bg-success/10 text-xs font-medium text-success hover:bg-success/20"
                   >
@@ -218,6 +342,55 @@ export default function MediaPage() {
       {albumModalOpen && <CreateAlbumModal onClose={() => setAlbumModalOpen(false)} />}
       {tagTarget && <TagStudentsModal mediaId={tagTarget} onClose={() => setTagTarget(null)} />}
     </div>
+  );
+}
+
+function StudentGallery() {
+  const { user } = useAuth();
+  const [tab, setTab] = useState<"photos" | "videos">("photos");
+  const me = useQuery({ queryKey: ["students", "me"], queryFn: async () => (await api.get<Student>("/students/me")).data, enabled: !!user });
+  const media = useQuery({
+    queryKey: ["students", me.data?.id, "media"],
+    queryFn: async () => (await api.get<MediaAsset[]>(`/students/${me.data!.id}/media`)).data,
+    enabled: !!me.data,
+  });
+  const filtered = media.data?.filter((m) => m.media_type === (tab === "photos" ? "photo" : "video")) ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>My Gallery</CardTitle>
+        <div className="flex gap-1">
+          <Button size="sm" variant={tab === "photos" ? "primary" : "outline"} onClick={() => setTab("photos")}>
+            <ImageIcon className="h-3.5 w-3.5" /> Photos
+          </Button>
+          <Button size="sm" variant={tab === "videos" ? "primary" : "outline"} onClick={() => setTab("videos")}>
+            <VideoIcon className="h-3.5 w-3.5" /> Videos
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {media.isLoading && <Spinner />}
+        {media.data && filtered.length === 0 && <EmptyState title={`No ${tab} yet`} description="Photos and videos you're tagged in will appear here once published." icon={tab === "photos" ? ImageIcon : VideoIcon} />}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {filtered.map((m) => (
+            <div key={m.id} className="overflow-hidden rounded-lg border border-border">
+              {tab === "photos" ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={m.thumbnail_url ?? m.url} alt="" className="aspect-square w-full object-cover" />
+              ) : (
+                <video src={m.url} className="aspect-square w-full object-cover" muted controls />
+              )}
+              {m.downloads_enabled && (
+                <a href={m.url} download className="flex items-center justify-center gap-1 border-t border-border py-1.5 text-xs text-muted hover:text-primary">
+                  <Download className="h-3 w-3" /> Download
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

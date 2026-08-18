@@ -2,9 +2,10 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ClipboardList, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarRange, ClipboardList, LayoutGrid, Plus, TrendingUp, Trash2, Users } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -21,6 +22,13 @@ import type { Batch, Branch, Course, CourseLevel, Trainer } from "@/lib/types";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+const HEALTH_CONFIG: Record<string, { label: string; tone: "danger" | "warning" | "info" }> = {
+  high_demand: { label: "High Demand", tone: "warning" },
+  low_utilization: { label: "Low Utilization", tone: "info" },
+  trainer_conflict: { label: "Trainer Conflict", tone: "danger" },
+  studio_conflict: { label: "Studio Conflict", tone: "danger" },
+};
+
 const schema = z.object({
   name: z.string().min(2, "Name is required"),
   course_level_id: z.string().min(1, "Select a level"),
@@ -35,19 +43,95 @@ type FormInput = z.input<typeof schema>;
 type FormValues = z.infer<typeof schema>;
 
 export default function BatchesPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <BatchesPageContent />
+    </Suspense>
+  );
+}
+
+function BatchesPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<"grid" | "schedule">("grid");
+  const [branchId, setBranchId] = useState("");
+  const [trainerId, setTrainerId] = useState("");
+  const [availability, setAvailability] = useState("");
+  const [health, setHealth] = useState(searchParams.get("health") ?? "");
   const canManage = user && ["super_admin", "admin", "receptionist"].includes(user.role);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["batches"],
-    queryFn: async () => (await api.get<Batch[]>("/batches")).data,
+    queryKey: ["batches", { branchId, trainerId, availability, health }],
+    queryFn: async () =>
+      (
+        await api.get<Batch[]>("/batches", {
+          params: {
+            branch_id: branchId || undefined,
+            trainer_id: trainerId || undefined,
+            availability: availability || undefined,
+            health: health || undefined,
+          },
+        })
+      ).data,
   });
+  const { data: branches } = useQuery({ queryKey: ["branches"], queryFn: async () => (await api.get<Branch[]>("/branches")).data });
+  const { data: trainers } = useQuery({ queryKey: ["trainers"], queryFn: async () => (await api.get<Trainer[]>("/trainers")).data });
+
+  const scheduleByDay = useMemo(() => {
+    const grouped: Batch[][] = Array.from({ length: 7 }, () => []);
+    data?.forEach((batch) => {
+      batch.schedules.forEach((slot) => {
+        if (!grouped[slot.day_of_week].some((b) => b.id === batch.id)) grouped[slot.day_of_week].push(batch);
+      });
+    });
+    return grouped;
+  }, [data]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">Batches, capacity, and weekly schedules.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select className="w-40" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+            <option value="">All branches</option>
+            {branches?.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </Select>
+          <Select className="w-40" value={trainerId} onChange={(e) => setTrainerId(e.target.value)}>
+            <option value="">All trainers</option>
+            {trainers?.map((t) => (
+              <option key={t.id} value={t.user_id}>{t.full_name}</option>
+            ))}
+          </Select>
+          <Select className="w-36" value={availability} onChange={(e) => setAvailability(e.target.value)}>
+            <option value="">Any availability</option>
+            <option value="available">Has seats</option>
+            <option value="full">Full</option>
+            <option value="waitlist">Has waitlist</option>
+          </Select>
+          <Select className="w-44" value={health} onChange={(e) => setHealth(e.target.value)}>
+            <option value="">Any health</option>
+            <option value="high_demand">High demand</option>
+            <option value="low_utilization">Low utilization</option>
+            <option value="trainer_conflict">Trainer conflict</option>
+            <option value="studio_conflict">Studio conflict</option>
+          </Select>
+          <div className="flex overflow-hidden rounded-lg border border-border">
+            <button
+              onClick={() => setView("grid")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm ${view === "grid" ? "bg-primary text-white" : "text-muted hover:bg-black/[0.02]"}`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> Grid
+            </button>
+            <button
+              onClick={() => setView("schedule")}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm ${view === "schedule" ? "bg-primary text-white" : "text-muted hover:bg-black/[0.02]"}`}
+            >
+              <CalendarRange className="h-3.5 w-3.5" /> Schedule
+            </button>
+          </div>
+        </div>
         {canManage && (
           <Button onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4" /> New Batch
@@ -57,34 +141,90 @@ export default function BatchesPage() {
 
       {isLoading && <Spinner />}
       {isError && <ErrorState />}
-      {data?.length === 0 && <EmptyState title="No batches yet" />}
+      {data?.length === 0 && <EmptyState title="No batches found" description="Try adjusting your filters." />}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {data?.map((batch) => (
-          <Link key={batch.id} href={`/batches/${batch.id}`}>
-          <Card className="p-5 transition-shadow hover:shadow-md">
-            <div className="flex items-center gap-2">
-              <div className="rounded-lg bg-gold/10 p-2 text-gold">
-                <ClipboardList className="h-4 w-4" />
+      {view === "grid" && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data?.map((batch) => (
+            <Link key={batch.id} href={`/batches/${batch.id}`}>
+              <Card className="p-5 transition-shadow hover:shadow-md">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="rounded-lg bg-gold/10 p-2 text-gold">
+                      <ClipboardList className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">{batch.name}</p>
+                      <p className="text-xs text-muted">{batch.course_name} · {batch.level_name}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {batch.health.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {batch.health.map((h) => {
+                      const config = HEALTH_CONFIG[h];
+                      if (!config) return null;
+                      return (
+                        <Badge key={h} tone={config.tone} className="flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> {config.label}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="mt-3 space-y-1 text-xs text-muted">
+                  <p>{batch.trainer_name ?? "Unassigned trainer"} · {batch.studio_name ?? "No studio"} · {batch.branch_name}</p>
+                  {batch.schedules.length > 0 && (
+                    <p>{batch.schedules.map((s) => `${DAYS[s.day_of_week].slice(0, 3)} ${s.start_time.slice(0, 5)}`).join(", ")}</p>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-1 text-muted">
+                    <Users className="h-3.5 w-3.5" /> {batch.enrolled_count} / {batch.capacity}
+                  </span>
+                  {batch.attendance_percent != null && (
+                    <span className="flex items-center gap-1 text-muted">
+                      <TrendingUp className="h-3.5 w-3.5" /> {batch.attendance_percent}%
+                    </span>
+                  )}
+                  {batch.waitlist_count > 0 && <Badge tone="info">{batch.waitlist_count} waitlisted</Badge>}
+                </div>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${Math.min(100, (batch.enrolled_count / batch.capacity) * 100)}%` }}
+                  />
+                </div>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {view === "schedule" && (
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-7">
+          {DAYS.map((day, idx) => (
+            <div key={day} className="rounded-xl border border-border p-3">
+              <p className="mb-2 text-xs font-semibold uppercase text-muted">{day}</p>
+              <div className="space-y-2">
+                {scheduleByDay[idx].length === 0 && <p className="text-xs text-muted">—</p>}
+                {scheduleByDay[idx].map((batch) => {
+                  const slot = batch.schedules.find((s) => s.day_of_week === idx);
+                  return (
+                    <Link key={batch.id} href={`/batches/${batch.id}`} className="block rounded-lg border border-border p-2 text-xs hover:bg-black/[0.02]">
+                      <p className="font-medium text-foreground">{batch.name}</p>
+                      <p className="text-muted">{slot ? `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}` : ""}</p>
+                    </Link>
+                  );
+                })}
               </div>
-              <p className="font-semibold text-foreground">{batch.name}</p>
             </div>
-            <div className="mt-3 flex items-center justify-between text-sm">
-              <span className="text-muted">
-                Capacity: {batch.enrolled_count} / {batch.capacity}
-              </span>
-              {batch.waitlist_count > 0 && <Badge tone="info">{batch.waitlist_count} waitlisted</Badge>}
-            </div>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
-              <div
-                className="h-full rounded-full bg-primary"
-                style={{ width: `${Math.min(100, (batch.enrolled_count / batch.capacity) * 100)}%` }}
-              />
-            </div>
-          </Card>
-          </Link>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {open && <CreateBatchModal onClose={() => setOpen(false)} />}
     </div>

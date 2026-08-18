@@ -31,10 +31,11 @@ def list_classes(
     trainer_id: uuid.UUID | None = None,
     batch_id: uuid.UUID | None = None,
     on_date: date | None = None,
+    unsubmitted: bool = False,
     db: Session = Depends(get_db),
     current_user=Depends(READ),
 ) -> list[ClassSessionOut]:
-    rows = repo.list_class_sessions(db, branch_id, trainer_id, batch_id, on_date)
+    rows = repo.list_class_sessions(db, branch_id, trainer_id, batch_id, on_date, unsubmitted)
     return [_to_out(db, r) for r in rows]
 
 

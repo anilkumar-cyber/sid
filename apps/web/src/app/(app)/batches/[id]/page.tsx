@@ -2,23 +2,25 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRightLeft, Plus, UserX } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, PencilLine, Plus, UserX } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { StatusBadge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
-import { FieldError, Label, Select } from "@/components/ui/Input";
+import { FieldError, Input, Label, Select } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { api, apiErrorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
-import type { Batch, Page, Student } from "@/lib/types";
+import type { Batch, Page, Student, Studio, Trainer } from "@/lib/types";
+
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 interface Enrollment {
   id: string;
@@ -35,6 +37,7 @@ export default function BatchDetailPage() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [transferTarget, setTransferTarget] = useState<Enrollment | null>(null);
   const canManage = user && ["super_admin", "admin", "receptionist"].includes(user.role);
 
@@ -75,15 +78,38 @@ export default function BatchDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-foreground">{batch.data.name}</h2>
+            <p className="text-sm text-muted">{batch.data.course_name} · {batch.data.level_name} · {batch.data.branch_name}</p>
             <p className="mt-1 text-sm text-muted">
               Capacity {batch.data.enrolled_count} / {batch.data.capacity}
               {waitlisted.length > 0 && ` · ${waitlisted.length} waitlisted`}
+              {batch.data.attendance_percent != null && ` · ${batch.data.attendance_percent}% attendance`}
             </p>
+            <p className="mt-1 text-sm text-muted">
+              Trainer: {batch.data.trainer_name ?? "Unassigned"} · Studio: {batch.data.studio_name ?? "Unassigned"}
+            </p>
+            {batch.data.schedules.length > 0 && (
+              <p className="mt-1 text-sm text-muted">
+                {batch.data.schedules.map((s) => `${DAYS[s.day_of_week]} ${s.start_time.slice(0, 5)}–${s.end_time.slice(0, 5)}`).join(", ")}
+              </p>
+            )}
+            {batch.data.health.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {batch.data.health.includes("trainer_conflict") && <Badge tone="danger">Trainer Conflict</Badge>}
+                {batch.data.health.includes("studio_conflict") && <Badge tone="danger">Studio Conflict</Badge>}
+                {batch.data.health.includes("high_demand") && <Badge tone="warning">High Demand</Badge>}
+                {batch.data.health.includes("low_utilization") && <Badge tone="info">Low Utilization</Badge>}
+              </div>
+            )}
           </div>
           {canManage && (
-            <Button size="sm" onClick={() => setEnrollOpen(true)}>
-              <Plus className="h-4 w-4" /> Enroll Student
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+                <PencilLine className="h-4 w-4" /> Edit
+              </Button>
+              <Button size="sm" onClick={() => setEnrollOpen(true)}>
+                <Plus className="h-4 w-4" /> Enroll Student
+              </Button>
+            </div>
           )}
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
@@ -92,6 +118,11 @@ export default function BatchDetailPage() {
             style={{ width: `${Math.min(100, (batch.data.enrolled_count / batch.data.capacity) * 100)}%` }}
           />
         </div>
+        {batch.data.waitlist_count >= 3 && batch.data.enrolled_count / batch.data.capacity >= 0.9 && (
+          <p className="mt-3 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning">
+            High demand — consider opening another batch for this course level.
+          </p>
+        )}
       </Card>
 
       <Card>
@@ -146,8 +177,118 @@ export default function BatchDetailPage() {
       </Card>
 
       {enrollOpen && <EnrollStudentModal batchId={id} onClose={() => setEnrollOpen(false)} />}
+      {editOpen && <EditBatchModal batch={batch.data} onClose={() => setEditOpen(false)} />}
       {transferTarget && <TransferModal enrollment={transferTarget} onClose={() => setTransferTarget(null)} />}
     </div>
+  );
+}
+
+const editSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  trainer_id: z.string().optional(),
+  studio_id: z.string().optional(),
+  capacity: z.coerce.number().min(1),
+  is_active: z.enum(["true", "false"]),
+});
+type EditFormInput = z.input<typeof editSchema>;
+type EditFormValues = z.infer<typeof editSchema>;
+
+function EditBatchModal({ batch, onClose }: { batch: Batch; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { data: trainers } = useQuery({ queryKey: ["trainers"], queryFn: async () => (await api.get<Trainer[]>("/trainers")).data });
+  const { data: studios } = useQuery({
+    queryKey: ["studios", batch.branch_id],
+    queryFn: async () => (await api.get<Studio[]>("/studios", { params: { branch_id: batch.branch_id } })).data,
+  });
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<EditFormInput, unknown, EditFormValues>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      name: batch.name,
+      trainer_id: batch.trainer_id ?? "",
+      studio_id: batch.studio_id ?? "",
+      capacity: batch.capacity,
+      is_active: batch.is_active ? "true" : "false",
+    },
+  });
+
+  const update = useMutation({
+    mutationFn: async (values: EditFormValues) =>
+      api.patch(`/batches/${batch.id}`, {
+        name: values.name,
+        trainer_id: values.trainer_id || null,
+        studio_id: values.studio_id || null,
+        capacity: values.capacity,
+        is_active: values.is_active === "true",
+      }),
+    onSuccess: () => {
+      toast.success("Batch updated");
+      queryClient.invalidateQueries({ queryKey: ["batches"] });
+      onClose();
+    },
+    onError: (err) => toast.error(apiErrorMessage(err, "Could not update batch — check for scheduling conflicts.")),
+  });
+
+  return (
+    <Modal title="Edit Batch" onClose={onClose}>
+      <form onSubmit={handleSubmit((v) => update.mutate(v))} className="space-y-4">
+        <div>
+          <Label>Batch Name</Label>
+          <Input {...register("name")} />
+          <FieldError message={errors.name?.message} />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>Trainer</Label>
+            <Select {...register("trainer_id")}>
+              <option value="">Unassigned</option>
+              {trainers?.map((t) => (
+                <option key={t.id} value={t.user_id}>
+                  {t.full_name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Label>Capacity</Label>
+            <Input type="number" {...register("capacity")} />
+            <FieldError message={errors.capacity?.message} />
+          </div>
+        </div>
+        <div>
+          <Label>Studio</Label>
+          <Select {...register("studio_id")}>
+            <option value="">Unassigned</option>
+            {studios?.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label>Status</Label>
+          <Select {...register("is_active")}>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+          </Select>
+        </div>
+        <p className="text-xs text-muted">Reassigning the trainer or studio is blocked if it conflicts with another batch&apos;s schedule.</p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={isSubmitting || update.isPending}>
+            Save Changes
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

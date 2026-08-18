@@ -3,9 +3,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Footprints, PencilLine, XCircle } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
-import { StatusBadge } from "@/components/ui/Badge";
+import { Badge, StatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/Feedback";
@@ -17,15 +18,26 @@ import { useToast } from "@/lib/toast";
 import type { ClassSession, Trainer } from "@/lib/types";
 
 export default function ClassesPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <ClassesPageContent />
+    </Suspense>
+  );
+}
+
+function ClassesPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [onDate, setOnDate] = useState("");
+  const [unsubmittedOnly, setUnsubmittedOnly] = useState(searchParams.get("unsubmitted") === "true");
   const [rescheduleTarget, setRescheduleTarget] = useState<ClassSession | null>(null);
   const [cancelTarget, setCancelTarget] = useState<ClassSession | null>(null);
   const canManage = user && ["super_admin", "admin", "receptionist"].includes(user.role);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["classes", { onDate }],
-    queryFn: async () => (await api.get<ClassSession[]>("/classes", { params: { on_date: onDate || undefined } })).data,
+    queryKey: ["classes", { onDate, unsubmittedOnly }],
+    queryFn: async () =>
+      (await api.get<ClassSession[]>("/classes", { params: { on_date: onDate || undefined, unsubmitted: unsubmittedOnly || undefined } })).data,
   });
 
   return (
@@ -36,6 +48,11 @@ export default function ClassesPage() {
           <Button size="sm" variant="outline" onClick={() => setOnDate("")}>
             Clear
           </Button>
+        )}
+        {unsubmittedOnly && (
+          <Badge tone="danger" className="cursor-pointer" onClick={() => setUnsubmittedOnly(false)}>
+            Missing attendance only · click to clear
+          </Badge>
         )}
       </div>
 

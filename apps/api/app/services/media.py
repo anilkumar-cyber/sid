@@ -76,8 +76,53 @@ def media_to_out(asset: MediaAsset) -> dict:
         "thumbnail_url": storage_url(asset.thumbnail_key),
         "status": asset.status,
         "uploaded_by_id": asset.uploaded_by_id,
+        "downloads_enabled": asset.downloads_enabled,
         "created_at": asset.created_at,
     }
+
+
+def set_download_permission(db: Session, asset: MediaAsset, enabled: bool) -> MediaAsset:
+    asset.downloads_enabled = enabled
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
+def auto_tag_performers(db: Session, album: Album, tagged_by_id: uuid.UUID) -> int:
+    """Tag every media asset in the album with every student participating in the album's linked performance(s)."""
+    from app.models.event import EventActivity, EventParticipant
+
+    activity_ids: list[uuid.UUID] = []
+    if album.activity_id:
+        activity_ids = [album.activity_id]
+    elif album.event_id:
+        activity_ids = list(db.execute(select(EventActivity.id).where(EventActivity.event_id == album.event_id)).scalars().all())
+    if not activity_ids:
+        return 0
+
+    student_ids = set(
+        db.execute(
+            select(EventParticipant.student_id).where(EventParticipant.activity_id.in_(activity_ids), EventParticipant.student_id.is_not(None))
+        ).scalars().all()
+    )
+    if not student_ids:
+        return 0
+
+    assets = repo.list_media(db, album.id, None, None)
+    already_tagged = {
+        (t.media_asset_id, t.student_id)
+        for a in assets
+        for t in db.execute(select(MediaTag).where(MediaTag.media_asset_id == a.id)).scalars().all()
+    }
+    new_tags = [
+        MediaTag(media_asset_id=a.id, student_id=sid, tagged_by_id=tagged_by_id)
+        for a in assets
+        for sid in student_ids
+        if (a.id, sid) not in already_tagged
+    ]
+    db.add_all(new_tags)
+    db.commit()
+    return len(new_tags)
 
 
 def approve_media(db: Session, asset: MediaAsset, approved_by_id: uuid.UUID) -> MediaAsset:

@@ -10,6 +10,7 @@ from app.repositories import media as repo
 from app.schemas.media import (
     AlbumCreate,
     AlbumOut,
+    DownloadPermissionUpdate,
     MediaAssetOut,
     MediaRejectRequest,
     MediaTagRequest,
@@ -110,6 +111,28 @@ def publish(media_id: uuid.UUID, db: Session = Depends(get_db), current_user=Dep
     asset = service.publish_media(db, asset)
     log_action(db, current_user.id, "media.published", "media_asset", str(media_id))
     return MediaAssetOut.model_validate(service.media_to_out(asset))
+
+
+@router.post("/media/{media_id}/downloads", response_model=MediaAssetOut)
+def set_download_permission(
+    media_id: uuid.UUID, body: DownloadPermissionUpdate, db: Session = Depends(get_db), current_user=Depends(require_roles(Role.SUPER_ADMIN, Role.ADMIN))
+) -> MediaAssetOut:
+    asset = repo.get_media(db, media_id)
+    if asset is None:
+        raise HTTPException(404, "Media not found")
+    asset = service.set_download_permission(db, asset, body.downloads_enabled)
+    log_action(db, current_user.id, "media.download_permission_changed", "media_asset", str(media_id), {"downloads_enabled": body.downloads_enabled})
+    return MediaAssetOut.model_validate(service.media_to_out(asset))
+
+
+@router.post("/albums/{album_id}/auto-tag-performers")
+def auto_tag_performers(album_id: uuid.UUID, db: Session = Depends(get_db), current_user=Depends(require_roles(Role.SUPER_ADMIN, Role.ADMIN))) -> dict:
+    album = repo.get_album(db, album_id)
+    if album is None:
+        raise HTTPException(404, "Album not found")
+    count = service.auto_tag_performers(db, album, current_user.id)
+    log_action(db, current_user.id, "media.auto_tagged", "album", str(album_id), {"tags_created": count})
+    return {"tags_created": count}
 
 
 @router.post("/media/{media_id}/tags", status_code=201)

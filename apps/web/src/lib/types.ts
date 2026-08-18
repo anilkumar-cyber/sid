@@ -80,17 +80,41 @@ export interface CourseLevel {
   duration_weeks: number | null;
 }
 
+export interface Studio {
+  id: string;
+  branch_id: string;
+  name: string;
+  capacity: number;
+  floor_area: string | null;
+  is_active: boolean;
+}
+
+export interface BatchScheduleSlot {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}
+
 export interface Batch {
   id: string;
   name: string;
   course_level_id: string;
+  course_name: string | null;
+  level_name: string | null;
   branch_id: string;
+  branch_name: string | null;
   studio_id: string | null;
+  studio_name: string | null;
   trainer_id: string | null;
+  trainer_name: string | null;
   capacity: number;
   is_active: boolean;
   enrolled_count: number;
   waitlist_count: number;
+  available_seats: number;
+  attendance_percent: number | null;
+  schedules: BatchScheduleSlot[];
+  health: string[];
 }
 
 export interface ClassSession {
@@ -228,6 +252,37 @@ export interface EventAttendanceSummary {
   complimentary: number;
 }
 
+export interface EventStats {
+  tickets_sold: number;
+  checked_in: number;
+  no_show: number;
+  complimentary: number;
+  revenue: number;
+  performances_count: number;
+  participants_count: number;
+  photos_count: number;
+  videos_count: number;
+}
+
+export interface EventActivity {
+  id: string;
+  event_id: string;
+  start_time: string;
+  title: string;
+  description: string | null;
+  performer_group: string | null;
+  trainer_id: string | null;
+}
+
+export interface EventParticipant {
+  id: string;
+  activity_id: string;
+  student_id: string | null;
+  trainer_id: string | null;
+  guest_name: string | null;
+  role: string;
+}
+
 export interface PostMedia {
   id: string;
   url: string;
@@ -291,6 +346,91 @@ export interface PostReport {
   reason: string;
   details: string | null;
   status: string;
+}
+
+export interface ActionItem {
+  id: string;
+  category: string;
+  priority: "critical" | "high" | "medium" | "informational";
+  title: string;
+  count: number;
+  link: string;
+  detail: string | null;
+}
+
+export interface ActionCenter {
+  items: ActionItem[];
+  generated_at: string;
+}
+
+export interface StudentOverview {
+  current_membership: Membership | null;
+  current_batches: { batch_id: string; batch_name: string }[];
+  next_class: { class_session_id: string; batch_name: string; session_date: string; start_time: string } | null;
+  attendance_percent: number | null;
+  outstanding_payment_amount: number;
+  upcoming_events_count: number;
+  recent_certificate_title: string | null;
+}
+
+export interface TimelineEntry {
+  date: string;
+  type: string;
+  title: string;
+  description: string | null;
+  link: string | null;
+}
+
+export interface AttendanceHistoryEntry {
+  class_session_id: string;
+  batch_name: string | null;
+  session_date: string;
+  status: string;
+}
+
+export interface StudentPerformance {
+  activity_id: string;
+  activity_title: string;
+  event_id: string;
+  event_name: string;
+  event_date: string;
+  role: string;
+}
+
+export interface EnrollmentRow {
+  id: string;
+  student_id: string;
+  batch_id: string;
+  membership_id: string | null;
+  status: string;
+  enrolled_date: string;
+  waitlist_position: number | null;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  earned: boolean;
+  earned_date: string | null;
+}
+
+export interface PracticeStreak {
+  current_streak_days: number;
+  longest_streak_days: number;
+  total_days_logged: number;
+  last_practiced_on: string | null;
+  practiced_today: boolean;
+}
+
+export interface DanceJourney {
+  joining_date: string;
+  skill_level: string | null;
+  current_course: string | null;
+  classes_attended: number;
+  events_participated: number;
+  achievements: Achievement[];
+  practice_streak: PracticeStreak;
 }
 
 export interface NotificationItem {

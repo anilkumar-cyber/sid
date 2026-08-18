@@ -7,6 +7,7 @@ from app.core.constants import Role
 from app.core.database import get_db
 from app.core.deps import require_roles
 from app.repositories import attendance as repo
+from app.repositories import student_360 as repo_360
 from app.repositories.academy import get_class_session
 from app.schemas.attendance import (
     AttendanceSubmit,
@@ -16,6 +17,7 @@ from app.schemas.attendance import (
     CorrectionRequestOut,
     StudentAttendanceStat,
 )
+from app.schemas.student_360 import AttendanceHistoryEntry
 from app.services import attendance as service
 from app.services.audit import log_action
 
@@ -56,6 +58,26 @@ def student_stats(student_id: uuid.UUID, db: Session = Depends(get_db), current_
         raise HTTPException(403, "Cannot view another student's attendance")
     stats = service.student_attendance_percent(db, student_id)
     return StudentAttendanceStat(student_id=student_id, full_name=profile.user.full_name, **stats)
+
+
+@router.get("/students/{student_id}/history", response_model=list[AttendanceHistoryEntry])
+def student_attendance_history(
+    student_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_roles(Role.SUPER_ADMIN, Role.ADMIN, Role.RECEPTIONIST, Role.TRAINER, Role.STUDENT)),
+) -> list[AttendanceHistoryEntry]:
+    from app.repositories.student import get_student
+
+    profile = get_student(db, student_id)
+    if profile is None:
+        raise HTTPException(404, "Student not found")
+    if current_user.role == Role.STUDENT and profile.user_id != current_user.id:
+        raise HTTPException(403, "Cannot view another student's attendance")
+    rows = repo_360.attendance_history(db, student_id)
+    return [
+        AttendanceHistoryEntry(class_session_id=r.class_session_id, batch_name=batch_name, session_date=session_date, status=r.status)
+        for r, batch_name, session_date in rows
+    ]
 
 
 @router.post("/corrections", response_model=CorrectionRequestOut, status_code=201)

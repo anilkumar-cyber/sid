@@ -13,6 +13,7 @@ from app.schemas.event import (
     EventAttendanceSummary,
     EventCreate,
     EventOut,
+    EventStats,
     EventUpdate,
     ParticipantAdd,
     ParticipantOut,
@@ -23,6 +24,7 @@ from app.services.audit import log_action
 router = APIRouter(prefix="/events", tags=["events"])
 
 MANAGE = require_roles(Role.SUPER_ADMIN, Role.ADMIN)
+STATS_ACCESS = require_roles(Role.SUPER_ADMIN, Role.ADMIN, Role.RECEPTIONIST)
 
 
 @router.get("", response_model=list[EventOut])
@@ -58,6 +60,11 @@ def update_event(event_id: uuid.UUID, body: EventUpdate, db: Session = Depends(g
 @router.get("/{event_id}/attendance-summary", response_model=EventAttendanceSummary)
 def attendance_summary(event_id: uuid.UUID, db: Session = Depends(get_db), current_user=Depends(MANAGE)) -> EventAttendanceSummary:
     return EventAttendanceSummary(**repo.event_attendance_summary(db, event_id))
+
+
+@router.get("/{event_id}/stats", response_model=EventStats)
+def event_stats(event_id: uuid.UUID, db: Session = Depends(get_db), current_user=Depends(STATS_ACCESS)) -> EventStats:
+    return EventStats(**repo.event_stats(db, event_id))
 
 
 @router.get("/{event_id}/activities", response_model=list[ActivityOut])

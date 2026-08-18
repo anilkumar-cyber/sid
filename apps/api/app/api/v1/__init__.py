@@ -7,6 +7,7 @@ from app.api.v1 import (
     branches,
     classes,
     courses,
+    dashboard,
     enrollments,
     events,
     feed,
@@ -25,6 +26,7 @@ from app.api.v1 import (
 router = APIRouter()
 router.include_router(auth.router)
 router.include_router(users.router)
+router.include_router(dashboard.router)
 router.include_router(branches.router)
 router.include_router(courses.router)
 router.include_router(batches.router)

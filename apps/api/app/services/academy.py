@@ -81,19 +81,75 @@ def create_batch(db: Session, data: dict) -> Batch:
     return batch
 
 
-def batch_to_out(db: Session, batch: Batch) -> dict:
+def update_batch(db: Session, batch: Batch, updates: dict) -> Batch:
+    new_trainer_id = updates.get("trainer_id", batch.trainer_id)
+    new_studio_id = updates.get("studio_id", batch.studio_id)
+    if "trainer_id" in updates or "studio_id" in updates:
+        for sched in repo.batch_schedules(db, batch.id):
+            if new_trainer_id and repo.check_trainer_conflict(
+                db, new_trainer_id, sched.day_of_week, sched.start_time, sched.end_time, exclude_batch_id=batch.id
+            ):
+                raise HTTPException(status.HTTP_409_CONFLICT, detail="Trainer is already booked for an overlapping slot")
+            if new_studio_id and repo.check_studio_conflict(
+                db, new_studio_id, sched.day_of_week, sched.start_time, sched.end_time, exclude_batch_id=batch.id
+            ):
+                raise HTTPException(status.HTTP_409_CONFLICT, detail="Studio is already booked for an overlapping slot")
+
+    for k, v in updates.items():
+        if v is not None:
+            setattr(batch, k, v)
+    db.commit()
+    db.refresh(batch)
+    return batch
+
+
+def batch_to_out(db: Session, batch: Batch, conflicts: set[str] | None = None) -> dict:
+    from app.models.user import User
+
+    enrolled = repo.enrolled_count(db, batch.id)
+    waitlist = repo.waitlist_count(db, batch.id)
+    attendance_percent = repo.batch_attendance_percent(db, batch.id)
+    schedules = repo.batch_schedules(db, batch.id)
+    if conflicts is None:
+        conflicts = repo.batch_conflicts(db, batch.branch_id).get(batch.id, set())
+
+    health: list[str] = list(conflicts)
+    occupancy = enrolled / batch.capacity if batch.capacity else 0
+    if occupancy >= 0.9 and waitlist >= 3:
+        health.append("high_demand")
+    if occupancy <= 0.3 and (attendance_percent is not None and attendance_percent <= 50):
+        health.append("low_utilization")
+
+    trainer = db.get(User, batch.trainer_id) if batch.trainer_id else None
+    course_level = batch.course_level
+    course = course_level.course if course_level else None
+
     return {
         "id": batch.id,
         "name": batch.name,
         "course_level_id": batch.course_level_id,
+        "course_name": course.name if course else None,
+        "level_name": course_level.name if course_level else None,
         "branch_id": batch.branch_id,
+        "branch_name": batch.branch.name if batch.branch else None,
         "studio_id": batch.studio_id,
+        "studio_name": batch.studio.name if batch.studio else None,
         "trainer_id": batch.trainer_id,
+        "trainer_name": trainer.full_name if trainer else None,
         "capacity": batch.capacity,
         "is_active": batch.is_active,
-        "enrolled_count": repo.enrolled_count(db, batch.id),
-        "waitlist_count": repo.waitlist_count(db, batch.id),
+        "enrolled_count": enrolled,
+        "waitlist_count": waitlist,
+        "available_seats": max(0, batch.capacity - enrolled),
+        "attendance_percent": attendance_percent,
+        "schedules": schedules,
+        "health": health,
     }
+
+
+def list_batches_out(db: Session, batches: list[Batch]) -> list[dict]:
+    conflicts_by_batch = repo.batch_conflicts(db)
+    return [batch_to_out(db, b, conflicts_by_batch.get(b.id, set())) for b in batches]
 
 
 def generate_class_sessions(db: Session, batch_id: uuid.UUID, weeks_ahead: int = 8) -> int:

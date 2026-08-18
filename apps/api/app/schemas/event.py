@@ -140,3 +140,15 @@ class EventAttendanceSummary(BaseModel):
     checked_in: int
     no_show: int
     complimentary: int
+
+
+class EventStats(BaseModel):
+    tickets_sold: int
+    checked_in: int
+    no_show: int
+    complimentary: int
+    revenue: float
+    performances_count: int
+    participants_count: int
+    photos_count: int
+    videos_count: int

@@ -32,9 +32,14 @@ class MediaAssetOut(BaseModel):
     thumbnail_url: str | None
     status: MediaStatus
     uploaded_by_id: uuid.UUID
+    downloads_enabled: bool = True
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class DownloadPermissionUpdate(BaseModel):
+    downloads_enabled: bool
 
 
 class MediaRejectRequest(BaseModel):

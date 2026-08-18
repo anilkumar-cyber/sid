@@ -53,6 +53,56 @@ def list_tickets_for_event(db: Session, event_id: uuid.UUID):
     return db.execute(select(Ticket).where(Ticket.event_id == event_id).order_by(Ticket.created_at.desc())).scalars().all()
 
 
+def event_stats(db: Session, event_id: uuid.UUID) -> dict:
+    from app.core.constants import MediaStatus, MediaType
+    from app.models.media import Album, MediaAsset
+
+    sold = db.execute(select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id)).scalar_one()
+    checked_in = db.execute(
+        select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.status == TicketStatus.CHECKED_IN)
+    ).scalar_one()
+    complimentary = db.execute(
+        select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id, Ticket.is_complimentary.is_(True))
+    ).scalar_one()
+    revenue = db.execute(select(func.coalesce(func.sum(Ticket.amount_paid), 0)).where(Ticket.event_id == event_id)).scalar_one()
+
+    activity_ids = db.execute(select(EventActivity.id).where(EventActivity.event_id == event_id)).scalars().all()
+    performances_count = len(activity_ids)
+    participants_count = (
+        db.execute(select(func.count(func.distinct(EventParticipant.id))).where(EventParticipant.activity_id.in_(activity_ids))).scalar_one()
+        if activity_ids
+        else 0
+    )
+
+    album_filter = Album.event_id == event_id
+    if activity_ids:
+        album_filter = album_filter | Album.activity_id.in_(activity_ids)
+    album_ids = db.execute(select(Album.id).where(album_filter)).scalars().all()
+    photos_count = 0
+    videos_count = 0
+    if album_ids:
+        media_counts = db.execute(
+            select(MediaAsset.media_type, func.count())
+            .where(MediaAsset.album_id.in_(album_ids), MediaAsset.status == MediaStatus.PUBLISHED)
+            .group_by(MediaAsset.media_type)
+        ).all()
+        counts = {row[0]: row[1] for row in media_counts}
+        photos_count = counts.get(MediaType.PHOTO, 0)
+        videos_count = counts.get(MediaType.VIDEO, 0)
+
+    return {
+        "tickets_sold": sold,
+        "checked_in": checked_in,
+        "no_show": sold - checked_in,
+        "complimentary": complimentary,
+        "revenue": float(revenue),
+        "performances_count": performances_count,
+        "participants_count": participants_count,
+        "photos_count": photos_count,
+        "videos_count": videos_count,
+    }
+
+
 def event_attendance_summary(db: Session, event_id: uuid.UUID) -> dict:
     sold = db.execute(select(func.count()).select_from(Ticket).where(Ticket.event_id == event_id)).scalar_one()
     checked_in = db.execute(

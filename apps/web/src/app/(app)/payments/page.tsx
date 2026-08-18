@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Plus } from "lucide-react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -20,14 +21,24 @@ import { useToast } from "@/lib/toast";
 import type { Branch, Page, Payment, RevenueSummary, Student } from "@/lib/types";
 
 export default function PaymentsPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <PaymentsPageContent />
+    </Suspense>
+  );
+}
+
+function PaymentsPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState(searchParams.get("status") ?? "");
   const canManage = user && ["super_admin", "admin", "receptionist"].includes(user.role);
 
   const summary = useQuery({ queryKey: ["payments", "summary"], queryFn: async () => (await api.get<RevenueSummary>("/payments/summary")).data, enabled: !!canManage });
   const payments = useQuery({
-    queryKey: ["payments", "list"],
-    queryFn: async () => (await api.get<Page<Payment>>("/payments", { params: { page_size: 20 } })).data,
+    queryKey: ["payments", "list", status],
+    queryFn: async () => (await api.get<Page<Payment>>("/payments", { params: { page_size: 20, status: status || undefined } })).data,
   });
 
   return (
@@ -40,8 +51,17 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">Payment history and receipts.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted">Payment history and receipts.</p>
+          <Select className="w-40" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="failed">Failed</option>
+            <option value="refunded">Refunded</option>
+          </Select>
+        </div>
         {canManage && (
           <Button onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4" /> Record Payment
@@ -52,7 +72,7 @@ export default function PaymentsPage() {
       <Card className="overflow-x-auto">
         {payments.isLoading && <Spinner />}
         {payments.isError && <ErrorState />}
-        {payments.data?.items.length === 0 && <EmptyState title="No payments recorded yet" />}
+        {payments.data?.items.length === 0 && <EmptyState title="No payments found" description="Try adjusting your filters." />}
         {!!payments.data?.items.length && (
           <table className="w-full text-sm">
             <thead className="border-b border-border bg-black/[0.02] text-left text-xs uppercase text-muted">

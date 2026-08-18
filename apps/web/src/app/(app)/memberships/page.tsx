@@ -3,7 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pause, Play, Plus, RotateCcw, Wallet, X } from "lucide-react";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -19,17 +20,30 @@ import { useToast } from "@/lib/toast";
 import type { Membership, MembershipPlan, Page, Student } from "@/lib/types";
 
 export default function MembershipsPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <MembershipsPageContent />
+    </Suspense>
+  );
+}
+
+function MembershipsPageContent() {
   const { user } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [planOpen, setPlanOpen] = useState(false);
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [freezeTarget, setFreezeTarget] = useState<string | null>(null);
+  const [status, setStatus] = useState(searchParams.get("status") ?? "");
   const canManage = user && ["super_admin", "admin", "receptionist"].includes(user.role);
   const canManagePlans = user?.role === "super_admin" || user?.role === "admin";
 
   const plans = useQuery({ queryKey: ["membership-plans"], queryFn: async () => (await api.get<MembershipPlan[]>("/membership-plans")).data });
-  const memberships = useQuery({ queryKey: ["memberships"], queryFn: async () => (await api.get<Membership[]>("/memberships")).data });
+  const memberships = useQuery({
+    queryKey: ["memberships", status],
+    queryFn: async () => (await api.get<Membership[]>("/memberships", { params: { status: status || undefined } })).data,
+  });
   const students = useQuery({
     queryKey: ["students", { page_size: 100 }],
     queryFn: async () => (await api.get<Page<Student>>("/students", { params: { page_size: 100 } })).data,
@@ -76,12 +90,22 @@ export default function MembershipsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Active Memberships</CardTitle>
-          {canManage && (
-            <Button size="sm" onClick={() => setMembershipOpen(true)}>
-              <Plus className="h-4 w-4" /> Assign Membership
-            </Button>
-          )}
+          <CardTitle>Memberships</CardTitle>
+          <div className="flex items-center gap-2">
+            <Select className="w-40" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="expiring">Expiring</option>
+              <option value="expired">Expired</option>
+              <option value="frozen">Frozen</option>
+              <option value="cancelled">Cancelled</option>
+            </Select>
+            {canManage && (
+              <Button size="sm" onClick={() => setMembershipOpen(true)}>
+                <Plus className="h-4 w-4" /> Assign Membership
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-2">
           {memberships.isLoading && <Spinner />}

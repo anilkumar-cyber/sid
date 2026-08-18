@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, MapPin, PartyPopper, Plus, Ticket } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -20,16 +21,37 @@ import { useToast } from "@/lib/toast";
 import type { SidEvent } from "@/lib/types";
 
 export default function EventsPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <EventsPageContent />
+    </Suspense>
+  );
+}
+
+function EventsPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState(searchParams.get("status") ?? "");
   const canManage = user?.role === "super_admin" || user?.role === "admin";
 
   const { data, isLoading, isError } = useQuery({ queryKey: ["events"], queryFn: async () => (await api.get<SidEvent[]>("/events")).data });
+  const filtered = status ? data?.filter((e) => e.status === status) : data;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">Academy showcases, competitions, and celebrations.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted">Academy showcases, competitions, and celebrations.</p>
+          <Select className="w-36" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </Select>
+        </div>
         {canManage && (
           <Button onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4" /> New Event
@@ -39,10 +61,10 @@ export default function EventsPage() {
 
       {isLoading && <Spinner />}
       {isError && <ErrorState />}
-      {data?.length === 0 && <EmptyState title="No events yet" icon={PartyPopper} />}
+      {filtered?.length === 0 && <EmptyState title="No events found" icon={PartyPopper} />}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {data?.map((event) => (
+        {filtered?.map((event) => (
           <Link key={event.id} href={`/events/${event.id}`}>
             <Card className="overflow-hidden transition-shadow hover:shadow-md">
               <div className="flex h-24 items-center justify-center bg-gradient-to-br from-primary to-accent text-white">

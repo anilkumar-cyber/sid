@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -31,9 +32,18 @@ type FormInput = z.input<typeof schema>;
 type FormValues = z.infer<typeof schema>;
 
 export default function StudentsPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <StudentsPageContent />
+    </Suspense>
+  );
+}
+
+function StudentsPageContent() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState(searchParams.get("status") ?? "");
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const canManage = user && ["super_admin", "admin", "receptionist"].includes(user.role);

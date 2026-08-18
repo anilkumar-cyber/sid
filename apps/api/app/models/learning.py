@@ -45,6 +45,16 @@ class StudentAssessment(BaseModel):
     comments: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class PracticeLog(BaseModel):
+    """Minimal practice-streak tracking: one row per student per day they logged practice."""
+
+    __tablename__ = "practice_logs"
+    __table_args__ = (UniqueConstraint("student_id", "practiced_on", name="uq_practice_log_student_date"),)
+
+    student_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("student_profiles.id"), nullable=False, index=True)
+    practiced_on: Mapped[date] = mapped_column(Date, nullable=False)
+
+
 class Certificate(BaseModel):
     __tablename__ = "certificates"
 

@@ -22,11 +22,24 @@ def list_batches(
     branch_id: uuid.UUID | None = None,
     course_level_id: uuid.UUID | None = None,
     trainer_id: uuid.UUID | None = None,
+    is_active: bool | None = None,
+    day_of_week: int | None = None,
+    availability: str | None = None,
+    health: str | None = None,
     db: Session = Depends(get_db),
     current_user=Depends(READ),
 ) -> list[BatchOut]:
-    rows = repo.list_batches(db, branch_id, course_level_id, trainer_id)
-    return [BatchOut.model_validate(service.batch_to_out(db, b)) for b in rows]
+    rows = repo.list_batches(db, branch_id, course_level_id, trainer_id, is_active, day_of_week)
+    out = service.list_batches_out(db, rows)
+    if availability == "available":
+        out = [b for b in out if b["available_seats"] > 0]
+    elif availability == "full":
+        out = [b for b in out if b["available_seats"] == 0]
+    elif availability == "waitlist":
+        out = [b for b in out if b["waitlist_count"] > 0]
+    if health:
+        out = [b for b in out if health in b["health"]]
+    return [BatchOut.model_validate(b) for b in out]
 
 
 @router.post("", response_model=BatchOut, status_code=201)
@@ -53,10 +66,6 @@ def update_batch(batch_id: uuid.UUID, body: BatchUpdate, db: Session = Depends(g
     if batch is None:
         raise HTTPException(404, "Batch not found")
     assert_branch_access(db, current_user, batch.branch_id)
-    for k, v in body.model_dump(exclude_unset=True).items():
-        if v is not None:
-            setattr(batch, k, v)
-    db.commit()
-    db.refresh(batch)
+    batch = service.update_batch(db, batch, body.model_dump(exclude_unset=True))
     log_action(db, current_user.id, "batch.updated", "batch", str(batch_id))
     return BatchOut.model_validate(service.batch_to_out(db, batch))
